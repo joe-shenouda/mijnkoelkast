@@ -1,1 +1,186 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MijnKoelKast.nl – Cook with what you have</title>
+  <!-- Tailwind CDN for rapid styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Alpine.js for lightweight reactivity -->
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <style>
+    /* Basic dark-mode toggle */
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors">
+  <!-- ========= HEADER ========= -->
+  <header class="bg-orange-500 text-white p-4 shadow-md sticky top-0 z-50">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold">MijnKoelKast.nl</h1>
+      <button id="darkToggle" class="p-2 rounded-full hover:bg-orange-600">
+        <i class="fas fa-moon"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========= MAIN APP (Alpine.js) ========= -->
+  <main class="container mx-auto p-4" x-data="app()">
+    <!-- Hero -->
+    <section class="text-center my-6">
+      <h2 class="text-3xl font-bold mb-2">Cook with what you have & reduce food waste</h2>
+      <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">Select ingredients, get instant recipes, build grocery lists.</p>
+    </section>
+
+    <div class="grid md:grid-cols-3 gap-6">
+      <!-- Ingredient Picker -->
+      <section class="md:col-span-1">
+        <h3 class="font-semibold text-xl mb-3">1. Pick Ingredients</h3>
+        <!-- Quick Find -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1">Quick Find</label>
+          <input x-model="searchTerm" placeholder="Start typing…" class="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:border-gray-600">
+        </div>
+        <!-- Categorized Checklist -->
+        <div class="max-h-96 overflow-y-auto border rounded p-2 space-y-2 dark:border-gray-700">
+          <template x-for="(items, category) in categorizedIngredients" :key="category">
+            <div>
+              <h4 x-text="category" class="font-bold text-sm mt-2 mb-1"></h4>
+              <template x-for="item in items" :key="item">
+                <label class="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" :value="item" x-model="selectedIngredients">
+                  <span x-text="item"></span>
+                </label>
+              </template>
+            </div>
+          </template>
+        </div>
+        <button @click="selectedIngredients = []" class="mt-2 text-sm underline">Clear all</button>
+      </section>
+
+      <!-- Recipe Results -->
+      <section class="md:col-span-2">
+        <h3 class="font-semibold text-xl mb-3">2. Recipes</h3>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <select x-model="filterCategory" class="border rounded px-2 py-1 dark:bg-gray-800 dark:border-gray-600">
+            <option value="">All Categories</option>
+            <option>Chicken</option><option>Beef</option><option>Vegetarian</option><option>Dessert</option>
+          </select>
+          <select x-model="sortBy" class="border rounded px-2 py-1 dark:bg-gray-800 dark:border-gray-600">
+            <option value="match">Match %</option>
+            <option value="time">Cooking Time</option>
+            <option value="ingredients"># Ingredients</option>
+          </select>
+        </div>
+
+        <div class="grid gap-4">
+          <template x-for="recipe in filteredRecipes" :key="recipe.id">
+            <article class="border rounded-lg p-4 shadow hover:shadow-md transition">
+              <div class="flex justify-between">
+                <h4 class="font-bold text-lg" x-text="recipe.name"></h4>
+                <span class="text-sm text-green-600 dark:text-green-400" x-text="calcMatch(recipe).toFixed(0)+'% match'"></span>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400" x-text="recipe.category + ' • ' + recipe.cookTime + ' min • ' + recipe.ingredients.length + ' ingredients'"></p>
+              <div class="text-xs mt-2">
+                <strong>Missing:</strong>
+                <span x-text="calcMissing(recipe).join(', ') || 'None'"></span>
+              </div>
+              <button @click="addToGrocery(calcMissing(recipe))" class="mt-2 text-xs bg-orange-500 text-white px-2 py-1 rounded">Add missing to list</button>
+            </article>
+          </template>
+          <p x-show="!filteredRecipes.length">No recipes found. Add more ingredients or filters.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- Grocery List -->
+    <section class="mt-8">
+      <h3 class="font-semibold text-xl mb-2">Grocery List</h3>
+      <ul class="list-disc pl-5">
+        <template x-for="item in groceryList" :key="item">
+          <li x-text="item"></li>
+        </template>
+      </ul>
+      <button @click="groceryList = []" class="text-sm underline mt-2">Clear list</button>
+    </section>
+  </main>
+
+  <!-- ========= FOOTER ========= -->
+  <footer class="text-center p-4 mt-10 text-sm text-gray-500">
+    © <span id="year"></span> MijnKoelKast.nl • Built with Alpine & Tailwind
+  </footer>
+
+  <!-- ========= SCRIPT ========= -->
+  <script>
+    // Dark mode toggle
+    document.getElementById('darkToggle').onclick = () => {
+      document.documentElement.classList.toggle('dark');
+    };
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Alpine.js store
+    function app() {
+      return {
+        searchTerm: '',
+        selectedIngredients: [],
+        filterCategory: '',
+        sortBy: 'match',
+        groceryList: [],
+        // Dummy data
+        recipes: [
+          { id: 1, name: 'Spaghetti Bolognese', category: 'Beef', cookTime: 30, ingredients: ['pasta', 'beef', 'tomato', 'onion', 'garlic'] },
+          { id: 2, name: 'Caprese Salad', category: 'Vegetarian', cookTime: 5, ingredients: ['tomato', 'mozzarella', 'basil', 'olive oil'] },
+          { id: 3, name: 'Chicken Tacos', category: 'Chicken', cookTime: 20, ingredients: ['chicken', 'tortilla', 'lettuce', 'tomato', 'cheese'] },
+          { id: 4, name: 'Seafood Paella', category: 'Seafood', cookTime: 45, ingredients: ['rice', 'shrimp', 'mussels', 'peas', 'saffron'] },
+          { id: 5, name: 'Pancakes', category: 'Dessert', cookTime: 15, ingredients: ['flour', 'milk', 'egg', 'sugar', 'butter'] }
+        ],
+        allIngredients: [
+          'pasta','beef','tomato','onion','garlic','mozzarella','basil','olive oil',
+          'chicken','tortilla','lettuce','cheese','rice','shrimp','mussels','peas',
+          'saffron','flour','milk','egg','sugar','butter','potato','carrot','bread'
+        ],
+        get categorizedIngredients() {
+          // Very rough categorization for demo
+          const cats = {
+            Meats: ['beef','chicken','shrimp','mussels'],
+            Pasta: ['pasta','rice','tortilla','bread'],
+            Veggies: ['tomato','onion','garlic','lettuce','peas','potato','carrot'],
+            Dairy: ['mozzarella','cheese','milk','butter','egg'],
+            Other: ['olive oil','flour','sugar','saffron']
+          };
+          // Filter by search
+          const res = {};
+          for (const [cat, items] of Object.entries(cats)) {
+            const filtered = items.filter(i => i.toLowerCase().includes(this.searchTerm.toLowerCase()));
+            if (filtered.length) res[cat] = filtered;
+          }
+          return res;
+        },
+        calcMatch(recipe) {
+          const total = recipe.ingredients.length;
+          const matched = recipe.ingredients.filter(i => this.selectedIngredients.includes(i)).length;
+          return (matched / total) * 100;
+        },
+        calcMissing(recipe) {
+          return recipe.ingredients.filter(i => !this.selectedIngredients.includes(i));
+        },
+        get filteredRecipes() {
+          let list = this.recipes
+            .filter(r => !this.filterCategory || r.category === this.filterCategory)
+            .filter(r => this.calcMatch(r) > 0);
+          if (this.sortBy === 'match') list.sort((a,b) => this.calcMatch(b) - this.calcMatch(a));
+          if (this.sortBy === 'time') list.sort((a,b) => a.cookTime - b.cookTime);
+          if (this.sortBy === 'ingredients') list.sort((a,b) => a.ingredients.length - b.ingredients.length);
+          return list;
+        },
+        addToGrocery(items) {
+          items.forEach(i => { if (!this.groceryList.includes(i)) this.groceryList.push(i); });
+        }
+      };
+    }
+  </script>
+</body>
+</html>
